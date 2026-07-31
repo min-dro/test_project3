@@ -59,7 +59,7 @@ jobs:
           username: ubuntu                      # EC2 접속 계정 (ubuntu 운영체제의 기본값)
           key: ${{ secrets.EC2_KEY }}           # 접속용 .pem 파일 내용
           source: "dist/*"                      # 전송할 파일명 (위에서 빌드한 dist 폴더의 모든 파일)
-          target: "/home/ubuntu/upload"         # EC2 안에서 이 파일을 전달받을 위치
+          target: "/home/ubuntu/react-upload"         # EC2 안에서 이 파일을 전달받을 위치
           strip_components: 1                   # 경로에서 바로 위의 폴더 1개를 빠져나오겠다.
                                                 # 즉, /home/ubuntu/react-upload/target/xxx.jar에서
                                                 #     /home/ubuntu/react-upload/* 로
