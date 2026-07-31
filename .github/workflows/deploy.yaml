@@ -45,7 +45,7 @@ jobs:
 
       # 3_2. npm run build
       - name: Build dist with npm              # 이 단계에 대한 설명
-        run: mvn run build                    # 터미널 명령어를 직접 써서 실행하겠다.
+        run: npm run build                    # 터미널 명령어를 직접 써서 실행하겠다.
         # 만들어진 dist 폴더는 프로젝트 폴더 바로 안에 만들어지고,
         # dist 폴더 안의 내용물들이 NginX 폴더로 들어가야함
 
