@@ -1,0 +1,87 @@
+# yaml 파일의 주석
+# Test_Project3 을 GitHub Actions 을 이용해서 CI/CD 해보기
+
+# Workflow 의 흐름
+# main push -> dist 로 빌드 -> EC2 로 전송 -> NginX 에 넣고 재시작
+
+# yaml 형식은 키 : 밸류 형식으로 적되, 
+#  "  " (공백문자 두개 간격으로 들여쓰기) 로 계층적 구조를 표현할 수 있다.
+
+# ---------------------------------------------------------------
+
+# 이 Workflow 의 이름 설정 (Action 탭에 보여질 이름)
+name: Deploy dist to NginX
+
+# 이 Workflow 를 언제 실행할건지 조건 설정
+on: 
+  push:                   # push (코드 업로드) 가 일어났을 때
+    branches: [ main ]    # main branch 의 코드를 CI/CD 로 올리겠다. (Workflow 를 수행하겠다)
+
+# Workflow 에서 순차적으로 실행할 작업을 정의
+jobs:
+  deploy:                     # 작업명 (아무거나 편한 이름 붙여주기)
+    runs-on: ubuntu-latest    # 이 작업을 수행할 컴퓨터를 지정
+                              # EC2 가 아니라 github 에서 빌려주는 컴퓨터 (jenkins 서버 역할)
+                              # 빌드 작업용 컴퓨터를 빌려온 것!! (WAR 파일만 뽑아주고 끝)
+
+    steps:                    # 실제 작업 순서대로 위에서부터 아래로 차례대로 적겠다.
+      
+      # 1단계 : 레포지토리에 저장된 내 소스코드를 위에서 정의한 빌드 작업용 컴퓨터로 내보내기
+      - name: Checkout                # 이 단계에 대한 설명
+        uses: actions/checkout@v4     # checkout 액션 : 내 레포 코드를 내보내는 명령문
+
+      # 2단계 : 빌드 작업용 컴퓨터에 Node.js 을 설치 (빌드하려면 Node.js 가 필요함)
+      - name: Set up Node.js           # 이 단계에 대한 설명
+        uses: actions/setup-node@v4   # setup-node 액션 : Node.js 를 설치해주는 명령문
+        with:                         # with 에 이 action (명령문) 에 넘길 옵션들을 적는다.
+          node-version: '24'          # 24버전을 쓰겠다. (개발 버전이랑 맞춰줘야함)
+          cache: 'npm'                # npm 의 캐시메모리를 쓰겠다. (다음 빌드부터는 빨라짐)
+
+      # 3단계 : Maven 을 이용해서 dist 폴더 만들기 (빌드)
+      # 기존에 우리는 npm run build 를 이용했었음
+      # 3_1. npm 모듈 설치
+      - name: Install dependencies
+        run: npm ci
+
+      # 3_2. npm run build
+      - name: Build WAR with npm              # 이 단계에 대한 설명
+        run: mvn run build                    # 터미널 명령어를 직접 써서 실행하겠다.
+        # 만들어진 dist 폴더는 프로젝트 폴더 바로 안에 만들어지고,
+        # dist 폴더 안의 내용물들이 NginX 폴더로 들어가야함
+
+      # ----- 여기까지가 CI, 아래부터는 CD -----
+
+      # 4단계 : 만들어진 dist 파일을 EC2 서버로 전송 (scp 명령문을 이용했었음)
+      - name: Copy dist to EC2                  # 이 단계에 대한 설명
+        uses: appleboy/scp-action@v0.1.7        # scp (파일 전송) 를 해주는 명령문
+        with:                                   # with 에 이 action (명령문) 에 넘길 옵션들을 적는다.
+          host: ${{ secrets.EC2_HOST }}         # 어디로 파일을 전송할건지 (EC2 주소)
+          username: ubuntu                      # EC2 접속 계정 (ubuntu 운영체제의 기본값)
+          key: ${{ secrets.EC2_KEY }}           # 접속용 .pem 파일 내용
+          source: "dist/*"                      # 전송할 파일명 (위에서 빌드한 dist 폴더의 모든 파일)
+          target: "/home/ubuntu/upload"         # EC2 안에서 이 파일을 전달받을 위치
+          strip_components: 1                   # 경로에서 바로 위의 폴더 1개를 빠져나오겠다.
+                                                # 즉, /home/ubuntu/react-upload/target/xxx.jar에서
+                                                #     /home/ubuntu/react-upload/* 로
+          # ${{ secrets.settings에서저장한변수명 }}
+
+      # 5단계 : EC2 에 접속 (ssh) 해서 dist 를 NginX 에 넣고 재구동
+      - name: Deploy to NginX                   # 이 단계에 대한 설명
+        uses: appleboy/ssh-action@v1.0.3        # ssh (원격 접속) 를 해주는 명령문
+        with:                                   # with 에 이 action (명령문) 에 넘길 옵션들을 적는다
+          host: ${{ secrets.EC2_HOST }}         # 어디로 접속할건지 (EC2 주소)
+          username: ubuntu                      # 어느 계정으로 접속할건지
+          key : ${{ secrets.EC2_KEY }}          # 접속용 .pem 파일 내용
+          # -- 여기까지가 EC2 에 접속 (ssh), 아래부터는 dist 를 NginX 에 넣고 재구동 ---
+          script: |                             # 아래의 명령문들을 EC2 리눅스 서버에서 순차적으로 실행
+            # 1) NginX 폴더 비우기
+            sudo rm -rf /var/www/react/*
+
+            # 2) 새로 올라온 파일들을 이 폴더로 복사하기
+            sudo cp -r /home/ubuntu/react-upload/* /var/www/react/
+
+            # 3) 임시 폴더 정리
+            sudo rm -rf /home/ubuntu/react-upload/*
+
+            # 4) NginX 반영
+            sudo systemctl reload nginx
