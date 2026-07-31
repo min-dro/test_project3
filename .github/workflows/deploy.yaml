@@ -4,8 +4,8 @@
 # Workflow 의 흐름
 # main push -> dist 로 빌드 -> EC2 로 전송 -> NginX 에 넣고 재시작
 
-# yaml 형식은 키 : 밸류 형식으로 적되, 
-#  "  " (공백문자 두개 간격으로 들여쓰기) 로 계층적 구조를 표현할 수 있다.
+# yaml 형식은 키 : 밸류 형식으로 적되,
+# "  " (공백문자 두개 간격으로 들여쓰기) 로 계층적 구조를 표현할 수 있다.
 
 # ---------------------------------------------------------------
 
@@ -20,7 +20,7 @@ on:
 # Workflow 에서 순차적으로 실행할 작업을 정의
 jobs:
   deploy:                     # 작업명 (아무거나 편한 이름 붙여주기)
-    runs-on: ubuntu-latest    # 이 작업을 수행할 컴퓨터를 지정
+    runs-on: ubuntu-latest    # 이 작업을 수행할 컴퓨터를 지정 (우분투 최신 버전)
                               # EC2 가 아니라 github 에서 빌려주는 컴퓨터 (jenkins 서버 역할)
                               # 빌드 작업용 컴퓨터를 빌려온 것!! (WAR 파일만 뽑아주고 끝)
 
@@ -37,14 +37,14 @@ jobs:
           node-version: '24'          # 24버전을 쓰겠다. (개발 버전이랑 맞춰줘야함)
           cache: 'npm'                # npm 의 캐시메모리를 쓰겠다. (다음 빌드부터는 빨라짐)
 
-      # 3단계 : Maven 을 이용해서 dist 폴더 만들기 (빌드)
+      # 3단계 : npm 을 이용해서 dist 폴더 만들기 (빌드)
       # 기존에 우리는 npm run build 를 이용했었음
       # 3_1. npm 모듈 설치
       - name: Install dependencies
         run: npm ci
 
       # 3_2. npm run build
-      - name: Build WAR with npm              # 이 단계에 대한 설명
+      - name: Build dist with npm              # 이 단계에 대한 설명
         run: mvn run build                    # 터미널 명령어를 직접 써서 실행하겠다.
         # 만들어진 dist 폴더는 프로젝트 폴더 바로 안에 만들어지고,
         # dist 폴더 안의 내용물들이 NginX 폴더로 들어가야함
@@ -59,9 +59,9 @@ jobs:
           username: ubuntu                      # EC2 접속 계정 (ubuntu 운영체제의 기본값)
           key: ${{ secrets.EC2_KEY }}           # 접속용 .pem 파일 내용
           source: "dist/*"                      # 전송할 파일명 (위에서 빌드한 dist 폴더의 모든 파일)
-          target: "/home/ubuntu/react-upload"         # EC2 안에서 이 파일을 전달받을 위치
+          target: "/home/ubuntu/react-upload"   # EC2 안에서 이 파일을 전달받을 위치
           strip_components: 1                   # 경로에서 바로 위의 폴더 1개를 빠져나오겠다.
-                                                # 즉, /home/ubuntu/react-upload/target/xxx.jar에서
+                                                # 즉, /home/ubuntu/react-upload/dist/*에서
                                                 #     /home/ubuntu/react-upload/* 로
           # ${{ secrets.settings에서저장한변수명 }}
 
